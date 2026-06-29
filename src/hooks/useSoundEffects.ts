@@ -13,10 +13,11 @@ interface SoundTone {
 declare const wx: any
 
 const SOUND_STORAGE_KEY = 'tetris-sound-enabled'
-const soundEnabled = shallowRef(true)
+const soundEnabled = shallowRef(false)
 let isSoundLoaded = false
 let h5AudioContext: AudioContext | null = null
 let miniAudioContext: any = null
+const h5AudioDataUriCache = new Map<SoundEffectType, string>()
 
 const SOUND_PATTERNS: Record<SoundEffectType, SoundTone[]> = {
   move: [{ frequency: 360, start: 0, duration: 0.045, gain: 0.028, type: 'square' }],
@@ -44,11 +45,7 @@ const SOUND_PATTERNS: Record<SoundEffectType, SoundTone[]> = {
 }
 
 function normalizeSoundEnabled(value: unknown) {
-  if (value === false || value === 'false' || value === 0 || value === '0') {
-    return false
-  }
-
-  return true
+  return value === true || value === 'true' || value === 1 || value === '1'
 }
 
 function loadSoundSetting() {
@@ -76,10 +73,121 @@ function getH5AudioContext() {
   return null
 }
 
-function playH5Pattern(pattern: SoundTone[]) {
+function getWaveValue(type: OscillatorType | undefined, phase: number) {
+  const normalizedPhase = phase % (Math.PI * 2)
+
+  if (type === 'square') {
+    return normalizedPhase < Math.PI ? 1 : -1
+  }
+
+  if (type === 'sawtooth') {
+    return normalizedPhase / Math.PI - 1
+  }
+
+  if (type === 'triangle') {
+    return 2 * Math.abs(2 * (normalizedPhase / (Math.PI * 2) - Math.floor(normalizedPhase / (Math.PI * 2) + 0.5))) - 1
+  }
+
+  return Math.sin(phase)
+}
+
+function encodeWavDataUri(samples: Int16Array, sampleRate: number) {
+  const byteRate = sampleRate * 2
+  const buffer = new ArrayBuffer(44 + samples.length * 2)
+  const view = new DataView(buffer)
+  let offset = 0
+
+  function writeString(value: string) {
+    for (let index = 0; index < value.length; index += 1) {
+      view.setUint8(offset, value.charCodeAt(index))
+      offset += 1
+    }
+  }
+
+  writeString('RIFF')
+  view.setUint32(offset, 36 + samples.length * 2, true)
+  offset += 4
+  writeString('WAVE')
+  writeString('fmt ')
+  view.setUint32(offset, 16, true)
+  offset += 4
+  view.setUint16(offset, 1, true)
+  offset += 2
+  view.setUint16(offset, 1, true)
+  offset += 2
+  view.setUint32(offset, sampleRate, true)
+  offset += 4
+  view.setUint32(offset, byteRate, true)
+  offset += 4
+  view.setUint16(offset, 2, true)
+  offset += 2
+  view.setUint16(offset, 16, true)
+  offset += 2
+  writeString('data')
+  view.setUint32(offset, samples.length * 2, true)
+  offset += 4
+
+  samples.forEach((sample) => {
+    view.setInt16(offset, sample, true)
+    offset += 2
+  })
+
+  const bytes = new Uint8Array(buffer)
+  let binary = ''
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte)
+  })
+
+  return `data:audio/wav;base64,${btoa(binary)}`
+}
+
+function createH5AudioDataUri(effect: SoundEffectType, pattern: SoundTone[]) {
+  const cachedDataUri = h5AudioDataUriCache.get(effect)
+  if (cachedDataUri) return cachedDataUri
+
+  const sampleRate = 22050
+  const totalDuration = Math.max(...pattern.map((tone) => tone.start + tone.duration)) + 0.04
+  const samples = new Int16Array(Math.ceil(sampleRate * totalDuration))
+
+  pattern.forEach((tone) => {
+    const startIndex = Math.floor(tone.start * sampleRate)
+    const toneSamples = Math.ceil(tone.duration * sampleRate)
+    const maxGain = tone.gain ?? 0.035
+
+    for (let index = 0; index < toneSamples; index += 1) {
+      const sampleIndex = startIndex + index
+      const progress = index / toneSamples
+      const envelope = progress < 0.18 ? progress / 0.18 : Math.max(0, 1 - (progress - 0.18) / 0.82)
+      const phase = (Math.PI * 2 * tone.frequency * index) / sampleRate
+      const value = getWaveValue(tone.type, phase) * maxGain * envelope
+      const mixedValue = samples[sampleIndex] + value * 32767
+      samples[sampleIndex] = Math.max(-32768, Math.min(32767, mixedValue))
+    }
+  })
+
+  const dataUri = encodeWavDataUri(samples, sampleRate)
+  h5AudioDataUriCache.set(effect, dataUri)
+  return dataUri
+}
+
+function playH5AudioFallback(effect: SoundEffectType, pattern: SoundTone[]) {
+  // #ifdef H5
+  const AudioConstructor = (window as Window & { Audio?: typeof Audio }).Audio
+  if (!AudioConstructor || typeof btoa !== 'function') return
+
+  const audio = new AudioConstructor(createH5AudioDataUri(effect, pattern))
+  audio.volume = 0.42
+  void audio.play()
+  // #endif
+}
+
+function playH5Pattern(effect: SoundEffectType, pattern: SoundTone[]) {
   // #ifdef H5
   const audioContext = getH5AudioContext()
-  if (!audioContext) return
+  if (!audioContext) {
+    playH5AudioFallback(effect, pattern)
+    return
+  }
 
   if (audioContext.state === 'suspended') {
     void audioContext.resume()
@@ -176,7 +284,7 @@ function playSoundEffect(effect: SoundEffectType) {
   const pattern = SOUND_PATTERNS[effect]
 
   // #ifdef H5
-  playH5Pattern(pattern)
+  playH5Pattern(effect, pattern)
   // #endif
 
   // #ifdef MP-WEIXIN
