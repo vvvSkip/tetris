@@ -1,0 +1,21 @@
+{
+  "name": "俄罗斯方块",
+  "appid": "__UNI__TETRIS",
+  "description": "移动端俄罗斯方块小游戏",
+  "versionName": "0.1.0",
+  "versionCode": "100",
+  "transformPx": false,
+  "mp-weixin": {
+    "appid": "",
+    "setting": {
+      "urlCheck": false,
+      "es6": true
+    },
+    "usingComponents": true
+  },
+  "h5": {
+    "router": {
+      "mode": "hash"
+    }
+  }
+}
