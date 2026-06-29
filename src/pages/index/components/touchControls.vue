@@ -139,7 +139,7 @@ const actionIcon = computed(() => {
 }
 
 .touch-controls__button--toggle {
-  flex: 1.24;
+  flex: 1;
 }
 
 .touch-controls__button--reset {
@@ -186,9 +186,19 @@ const actionIcon = computed(() => {
 }
 
 :deep(.nut-button__wrap) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   min-width: 0;
+  width: 100%;
   padding: 0 6rpx;
+  color: inherit;
   box-sizing: border-box;
+}
+
+:deep(.nut-button__wrap uni-text),
+:deep(.nut-button__wrap text) {
+  color: inherit;
 }
 
 :deep(.touch-controls__button--move) {
@@ -237,7 +247,7 @@ const actionIcon = computed(() => {
   }
 
   .touch-controls__group {
-    gap: 10rpx;
+    gap: 8rpx;
   }
 
   .touch-controls__icon {
@@ -252,6 +262,10 @@ const actionIcon = computed(() => {
   :deep(.nut-button) {
     height: 60rpx;
     border-radius: 12rpx;
+  }
+
+  :deep(.nut-button__wrap) {
+    padding: 0 4rpx;
   }
 }
 </style>

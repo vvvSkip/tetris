@@ -35,6 +35,10 @@ const { loadAntiAddictionState, startPlaySession, stopPlaySession } = useAntiAdd
 const { themeClass, themeLabel, nextThemeLabel, loadTheme, toggleTheme } = useTheme()
 const { soundLabel, nextSoundLabel, loadSoundSetting, toggleSound, playSoundEffect } = useSoundEffects()
 const rulePopupRef = shallowRef<InstanceType<typeof RulePopup> | null>(null)
+const layoutStyle = shallowRef<Record<string, string>>({
+  '--tetris-window-height': '100vh',
+  '--tetris-safe-bottom': '0px'
+})
 
 const {
   displayBoard,
@@ -210,6 +214,41 @@ function handleKeydown(event: KeyboardEvent) {
   action()
 }
 
+function updateLayoutStyle() {
+  let windowHeight = 0
+  let safeBottom = 0
+  let isH5Runtime = false
+
+  try {
+    const systemInfo = uni.getSystemInfoSync()
+    windowHeight = Number(systemInfo.windowHeight || windowHeight)
+    safeBottom = Number(systemInfo.safeAreaInsets?.bottom || 0)
+
+    if (!safeBottom && systemInfo.screenHeight && systemInfo.safeArea?.bottom) {
+      safeBottom = Math.max(0, Number(systemInfo.screenHeight) - Number(systemInfo.safeArea.bottom))
+    }
+  } catch (error) {
+    console.warn('update layout failed', error)
+  }
+
+  // #ifdef H5
+  isH5Runtime = true
+  if (typeof window !== 'undefined') {
+    const visualViewport = window.visualViewport
+    const visualHeight = Math.floor(visualViewport?.height || 0)
+
+    windowHeight = visualHeight || windowHeight || Math.floor(window.innerHeight || 0)
+  }
+  // #endif
+
+  const bottomInset = isH5Runtime ? 0 : Math.max(0, safeBottom)
+
+  layoutStyle.value = {
+    '--tetris-window-height': windowHeight > 0 ? `${windowHeight}px` : '100vh',
+    '--tetris-safe-bottom': `${bottomInset}px`
+  }
+}
+
 watch(
   status,
   (nextStatus) => {
@@ -224,12 +263,18 @@ watch(
 )
 
 onMounted(() => {
+  updateLayoutStyle()
+
   // #ifdef H5
   window.addEventListener('keydown', handleKeydown)
+  window.addEventListener('resize', updateLayoutStyle)
+  window.visualViewport?.addEventListener('resize', updateLayoutStyle)
+  window.visualViewport?.addEventListener('scroll', updateLayoutStyle)
   // #endif
 })
 
 onShow(() => {
+  updateLayoutStyle()
   loadTheme()
   loadSoundSetting()
   loadGameCredits()
@@ -248,12 +293,15 @@ onUnmounted(() => {
 
   // #ifdef H5
   window.removeEventListener('keydown', handleKeydown)
+  window.removeEventListener('resize', updateLayoutStyle)
+  window.visualViewport?.removeEventListener('resize', updateLayoutStyle)
+  window.visualViewport?.removeEventListener('scroll', updateLayoutStyle)
   // #endif
 })
 </script>
 
 <template>
-  <view class="tetris-page" :class="themeClass">
+  <view class="tetris-page" :class="themeClass" :style="layoutStyle">
     <view class="tetris-page__content">
       <view class="tetris-page__top">
         <CreditPanel
@@ -288,7 +336,9 @@ onUnmounted(() => {
         :preview-cells="previewBoard"
       />
 
-      <GameBoard :cells="displayBoard" />
+      <view class="tetris-page__board-area">
+        <GameBoard :cells="displayBoard" />
+      </view>
 
       <TouchControls
         :action-label="actionLabel"
@@ -309,9 +359,9 @@ onUnmounted(() => {
 
 <style lang="scss" scoped>
 .tetris-page {
-  height: 100vh;
+  height: var(--tetris-window-height, 100vh);
   padding: 8rpx 20rpx;
-  padding-bottom: calc(8rpx + env(safe-area-inset-bottom));
+  padding-bottom: calc(8rpx + var(--tetris-safe-bottom, 0px));
   background: var(--tetris-page-bg);
   box-sizing: border-box;
   overflow: hidden;
@@ -319,7 +369,9 @@ onUnmounted(() => {
 
 /* #ifdef H5 */
 .tetris-page {
-  height: 100vh;
+  height: var(--tetris-window-height, 100dvh);
+  padding-bottom: calc(8rpx + constant(safe-area-inset-bottom));
+  padding-bottom: calc(8rpx + env(safe-area-inset-bottom));
 }
 /* #endif */
 
@@ -330,9 +382,9 @@ onUnmounted(() => {
   height: 100%;
   max-width: 720rpx;
   margin: 0 auto;
-  gap: 4rpx;
+  gap: 6rpx;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: flex-start;
   overflow: hidden;
 }
 
@@ -343,14 +395,39 @@ onUnmounted(() => {
   gap: 8rpx;
 }
 
+.tetris-page__top,
+:deep(.game-panel),
+:deep(.touch-controls) {
+  flex-shrink: 0;
+}
+
+.tetris-page__board-area {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
+  padding: 2rpx 0;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
 @media screen and (max-height: 700px) {
   .tetris-page {
     padding-top: 6rpx;
-    padding-bottom: calc(6rpx + env(safe-area-inset-bottom));
+    padding-bottom: calc(6rpx + var(--tetris-safe-bottom, 0px));
   }
 
+  /* #ifdef H5 */
+  .tetris-page {
+    padding-bottom: calc(6rpx + constant(safe-area-inset-bottom));
+    padding-bottom: calc(6rpx + env(safe-area-inset-bottom));
+  }
+  /* #endif */
+
   .tetris-page__content {
-    gap: 2rpx;
+    gap: 4rpx;
   }
 
   .tetris-page__top {

@@ -36,8 +36,13 @@ function getCellClass(cell: BoardCell) {
 
 <style lang="scss" scoped>
 .game-board {
-  width: 640rpx;
+  display: flex;
+  flex-direction: column;
+  width: auto;
+  height: 100%;
   max-width: calc(100vw - 48rpx);
+  max-height: 100%;
+  aspect-ratio: 1 / 2;
   padding: 8rpx;
   background-color: var(--tetris-board-bg, #111827);
   border: 2rpx solid var(--tetris-panel-border, rgba(148, 163, 184, 0.28));
@@ -48,12 +53,15 @@ function getCellClass(cell: BoardCell) {
 
 .game-board__row {
   display: flex;
+  flex: 1 1 0;
+  min-height: 0;
 }
 
 .game-board__cell {
-  width: 60rpx;
-  height: 60rpx;
-  flex: 0 0 60rpx;
+  width: auto;
+  height: auto;
+  flex: 1 1 0;
+  min-width: 0;
   margin: 1rpx;
   background-color: var(--tetris-cell-bg, #1f2937);
   border-radius: 7rpx;
@@ -96,30 +104,10 @@ function getCellClass(cell: BoardCell) {
   background-color: #fb923c;
 }
 
-@media screen and (max-height: 780px) {
-  .game-board {
-    width: 580rpx;
-  }
-
-  .game-board__cell {
-    width: 54rpx;
-    height: 54rpx;
-    flex-basis: 54rpx;
-  }
-}
-
 @media screen and (max-height: 700px) {
   .game-board {
-    width: 476rpx;
     padding: 6rpx;
     border-radius: 14rpx;
-  }
-
-  .game-board__cell {
-    width: 44rpx;
-    height: 44rpx;
-    flex-basis: 44rpx;
-    border-radius: 6rpx;
   }
 }
 </style>

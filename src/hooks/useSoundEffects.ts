@@ -13,10 +13,14 @@ interface SoundTone {
 declare const wx: any
 
 const SOUND_STORAGE_KEY = 'tetris-sound-enabled'
+const H5_SOUND_FILE = 'static/audio/tetris-tap.wav'
+const MINI_SOUND_FILE = '/static/audio/tetris-tap.wav'
 const soundEnabled = shallowRef(false)
 let isSoundLoaded = false
 let h5AudioContext: AudioContext | null = null
+let h5FileAudio: HTMLAudioElement | null = null
 let miniAudioContext: any = null
+let miniFileAudio: any = null
 const h5AudioDataUriCache = new Map<SoundEffectType, string>()
 
 const SOUND_PATTERNS: Record<SoundEffectType, SoundTone[]> = {
@@ -181,6 +185,46 @@ function playH5AudioFallback(effect: SoundEffectType, pattern: SoundTone[]) {
   // #endif
 }
 
+function getH5FileAudio() {
+  // #ifdef H5
+  if (h5FileAudio) return h5FileAudio
+
+  const AudioConstructor = (window as Window & { Audio?: typeof Audio }).Audio
+  if (!AudioConstructor) return null
+
+  h5FileAudio = new AudioConstructor(H5_SOUND_FILE)
+  h5FileAudio.preload = 'auto'
+  h5FileAudio.volume = 0.56
+  return h5FileAudio
+  // #endif
+
+  return null
+}
+
+function playH5FileAudio(effect: SoundEffectType, pattern: SoundTone[]) {
+  // #ifdef H5
+  const audio = getH5FileAudio()
+  if (!audio) return false
+
+  try {
+    audio.currentTime = 0
+    const playTask = audio.play()
+
+    if (playTask?.catch) {
+      void playTask.catch(() => {
+        playH5Pattern(effect, pattern)
+      })
+    }
+
+    return true
+  } catch {
+    return false
+  }
+  // #endif
+
+  return false
+}
+
 function playH5Pattern(effect: SoundEffectType, pattern: SoundTone[]) {
   // #ifdef H5
   const audioContext = getH5AudioContext()
@@ -226,6 +270,38 @@ function getMiniAudioContext() {
   // #endif
 
   return null
+}
+
+function getMiniFileAudio() {
+  // #ifdef MP-WEIXIN
+  if (miniFileAudio) return miniFileAudio
+
+  miniFileAudio = uni.createInnerAudioContext()
+  miniFileAudio.src = MINI_SOUND_FILE
+  miniFileAudio.volume = 0.64
+  miniFileAudio.obeyMuteSwitch = false
+  return miniFileAudio
+  // #endif
+
+  return null
+}
+
+function playMiniProgramFileAudio() {
+  // #ifdef MP-WEIXIN
+  const audio = getMiniFileAudio()
+  if (!audio) return false
+
+  try {
+    audio.stop?.()
+    audio.seek?.(0)
+    audio.play()
+    return true
+  } catch {
+    return false
+  }
+  // #endif
+
+  return false
 }
 
 function playMiniProgramPattern(pattern: SoundTone[]) {
@@ -284,11 +360,13 @@ function playSoundEffect(effect: SoundEffectType) {
   const pattern = SOUND_PATTERNS[effect]
 
   // #ifdef H5
-  playH5Pattern(effect, pattern)
+  if (!playH5FileAudio(effect, pattern)) {
+    playH5Pattern(effect, pattern)
+  }
   // #endif
 
   // #ifdef MP-WEIXIN
-  if (!playMiniProgramPattern(pattern)) {
+  if (!playMiniProgramFileAudio() && !playMiniProgramPattern(pattern)) {
     playFallbackFeedback(effect)
   }
   // #endif

@@ -13,6 +13,16 @@ page {
   overflow: hidden;
 }
 
+/* #ifdef H5 */
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+/* #endif */
+
 .theme-dark {
   --tetris-page-base-bg: #111827;
   --tetris-page-bg:
@@ -99,4 +109,10 @@ page {
     'Segoe UI',
     sans-serif;
 }
+
+/* #ifdef H5 */
+.app {
+  height: 100dvh;
+}
+/* #endif */
 </style>
